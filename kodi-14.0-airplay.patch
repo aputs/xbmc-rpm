@@ -1,0 +1,607 @@
+From b99268389d1542b1477059777d9be519f869a4c3 Mon Sep 17 00:00:00 2001
+From: Memphiz <memphis@machzwo.de>
+Date: Tue, 23 Sep 2014 22:30:08 +0200
+Subject: [PATCH 1/8] [settings] - add new expert setting for enabling ios8
+ compatibility
+
+---
+ language/English/strings.po  | 14 ++++++++++++--
+ system/settings/settings.xml |  8 ++++++++
+ 2 files changed, 20 insertions(+), 2 deletions(-)
+
+diff --git a/language/English/strings.po b/language/English/strings.po
+index f8e7820..0073597 100755
+--- a/language/English/strings.po
++++ b/language/English/strings.po
+@@ -3761,9 +3761,13 @@ msgctxt "#1260"
+ msgid "Announce these services to other systems via Zeroconf"
+ msgstr ""
+ 
+-#empty strings from id 1261 to 1268
++#empty strings from id 1261 to 1267
+ 
+ #: system/settings/settings.xml
++msgctxt "#1268"
++msgid "iOS 8 compatibility mode"
++msgstr ""
++
+ msgctxt "#1269"
+ msgid "Allow volume control"
+ msgstr ""
+@@ -15670,7 +15674,13 @@ msgctxt "#36548"
+ msgid "Limits resolution of GUI to save memory. Does not affect video playback. Requires restart."
+ msgstr ""
+ 
+-#empty strings from id 36549 to 36599
++#. Description of setting "Services -> AirPlay -> iOS 8 compatibility mode" with label #1268
++#: system/settings/settings.xml
++msgctxt "#36549"
++msgid "Use iOS8 compatible AirPlay support. If you have trouble with older iOS devices detecting Kodi as a valid target try switching this off. This option takes effect on the next restart of Kodi only!"
++msgstr ""
++
++#empty strings from id 36550 to 36599
+ #reserved strings 365XX
+ 
+ #. Description of settings category "Music -> Library" with label #14022
+diff --git a/system/settings/settings.xml b/system/settings/settings.xml
+index 304c308..126a1da 100644
+--- a/system/settings/settings.xml
++++ b/system/settings/settings.xml
+@@ -2202,6 +2202,14 @@
+             <hidden>true</hidden>
+           </control>
+         </setting>
++        <setting id="services.airplayios8compat" type="boolean" parent="services.airplay" label="1268" help="36549">
++          <level>3</level>
++          <default>true</default>
++          <dependencies>
++            <dependency type="enable" setting="services.airplay">true</dependency>
++          </dependencies>
++          <control type="toggle" />
++        </setting>
+       </group>
+     </category>
+     <category id="smb" label="1200" help="36346">
+
+From 84f0c92b18041603d02bbdd926b356f1e48dbf26 Mon Sep 17 00:00:00 2001
+From: Memphiz <memphis@machzwo.de>
+Date: Tue, 23 Sep 2014 22:30:50 +0200
+Subject: [PATCH 2/8] [airplay] - implement different announcements when using
+ the ios8 compatibility mode
+
+---
+ xbmc/network/AirTunesServer.cpp  |  2 +-
+ xbmc/network/NetworkServices.cpp | 15 ++++++++++++++-
+ 2 files changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/xbmc/network/AirTunesServer.cpp b/xbmc/network/AirTunesServer.cpp
+index 4f29b48..4f52e2d 100644
+--- a/xbmc/network/AirTunesServer.cpp
++++ b/xbmc/network/AirTunesServer.cpp
+@@ -389,9 +389,9 @@ bool CAirTunesServer::StartServer(int port, bool nonlocal, bool usePassword, con
+     txt.push_back(std::make_pair("pw",  usePassword?"true":"false"));
+     txt.push_back(std::make_pair("vn",  "3"));
+     txt.push_back(std::make_pair("da",  "true"));
+-    txt.push_back(std::make_pair("vs",  "130.14"));
+     txt.push_back(std::make_pair("md",  "0,1,2"));
+     txt.push_back(std::make_pair("am",  "Xbmc,1"));
++    txt.push_back(std::make_pair("vs",  "130.14"));
+ 
+     CZeroconf::GetInstance()->PublishService("servers.airtunes", "_raop._tcp", appName, port, txt);
+   }
+diff --git a/xbmc/network/NetworkServices.cpp b/xbmc/network/NetworkServices.cpp
+index 3dc2a27..519c27e 100644
+--- a/xbmc/network/NetworkServices.cpp
++++ b/xbmc/network/NetworkServices.cpp
+@@ -530,9 +530,22 @@ bool CNetworkServices::StartAirPlayServer()
+   std::vector<std::pair<std::string, std::string> > txt;
+   CNetworkInterface* iface = g_application.getNetwork().GetFirstConnectedInterface();
+   txt.push_back(make_pair("deviceid", iface != NULL ? iface->GetMacAddress() : "FF:FF:FF:FF:FF:F2"));
+-  txt.push_back(make_pair("features", "0x77"));
+   txt.push_back(make_pair("model", "Xbmc,1"));
+   txt.push_back(make_pair("srcvers", AIRPLAY_SERVER_VERSION_STR));
++
++  if (CSettings::Get().GetBool("services.airplayios8compat"))
++  {
++    // for ios8 clients we need to announce mirroring support
++    // else we won't get video urls anymore.
++    // We also announce photo caching support (as it seems faster and
++    // we have implemented it anyways). 
++    txt.push_back(make_pair("features", "0x20F7"));
++  }
++  else
++  {
++    txt.push_back(make_pair("features", "0x77"));
++  }
++
+   CZeroconf::GetInstance()->PublishService("servers.airplay", "_airplay._tcp", g_infoManager.GetLabel(SYSTEM_FRIENDLY_NAME), g_advancedSettings.m_airPlayPort, txt);
+ #endif // HAS_ZEROCONF
+ 
+
+From 7295c9aebac7cb5ceb01cf45d8a0d003dd301fb5 Mon Sep 17 00:00:00 2001
+From: Memphiz <memphis@machzwo.de>
+Date: Sat, 11 Jan 2014 02:15:39 +0100
+Subject: [PATCH 3/8] [airplay] - implemented photo asset cache
+
+---
+ xbmc/network/AirPlayServer.cpp | 90 +++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 80 insertions(+), 10 deletions(-)
+
+diff --git a/xbmc/network/AirPlayServer.cpp b/xbmc/network/AirPlayServer.cpp
+index 09f7bd4..4a53f0e 100644
+--- a/xbmc/network/AirPlayServer.cpp
++++ b/xbmc/network/AirPlayServer.cpp
+@@ -33,6 +33,7 @@
+ #include "utils/StringUtils.h"
+ #include "threads/SingleLock.h"
+ #include "filesystem/File.h"
++#include "filesystem/Directory.h"
+ #include "FileItem.h"
+ #include "Application.h"
+ #include "ApplicationMessenger.h"
+@@ -61,6 +62,7 @@ using namespace std;
+ #define AIRPLAY_STATUS_NEED_AUTH           401
+ #define AIRPLAY_STATUS_NOT_FOUND           404
+ #define AIRPLAY_STATUS_METHOD_NOT_ALLOWED  405
++#define AIRPLAY_STATUS_PRECONDITION_FAILED 412
+ #define AIRPLAY_STATUS_NOT_IMPLEMENTED     501
+ #define AIRPLAY_STATUS_NO_RESPONSE_NEEDED  1000
+ 
+@@ -219,9 +221,34 @@ bool CAirPlayServer::SetInternalCredentials(bool usePassword, const std::string&
+   return true;
+ }
+ 
++void ClearPhotoAssetCache()
++{
++  CLog::Log(LOGINFO, "AIRPLAY: Cleaning up photoassetcache");
++  // remove all cached photos
++  CFileItemList items;
++  XFILE::CDirectory::GetDirectory("special://temp/", items);
++  
++  for (int i = 0; i < items.Size(); ++i)
++  {
++    CFileItemPtr pItem = items[i];
++    if (!pItem->m_bIsFolder)
++    {
++      if (StringUtils::StartsWithNoCase(pItem->GetLabel(), "airplayasset") &&
++          (StringUtils::EndsWithNoCase(pItem->GetLabel(), ".jpg") ||
++           StringUtils::EndsWithNoCase(pItem->GetLabel(), ".png") ))
++      {
++        XFILE::CFile::Delete(pItem->GetPath());
++      }
++    }
++  }  
++}
++
+ void CAirPlayServer::StopServer(bool bWait)
+ {
+   CSingleLock lock(ServerInstanceLock);
++  //clean up the photo cache temp folder
++  ClearPhotoAssetCache();
++
+   if (ServerInstance)
+   {
+     ServerInstance->StopThread(bWait);
+@@ -495,6 +522,9 @@ void CAirPlayServer::CTCPClient::PushBuffer(CAirPlayServer *host, const char *bu
+       case AIRPLAY_STATUS_METHOD_NOT_ALLOWED:
+         statusMsg = "Method Not Allowed";
+         break;
++      case AIRPLAY_STATUS_PRECONDITION_FAILED:
++        statusMsg = "Precondition Failed";
++        break;
+     }
+ 
+     // Prepare the response
+@@ -721,6 +751,9 @@ int CAirPlayServer::CTCPClient::ProcessRequest( std::string& responseHeader,
+   std::string contentType = m_httpParser->getValue("content-type") ? m_httpParser->getValue("content-type") : "";
+   m_sessionId = m_httpParser->getValue("x-apple-session-id") ? m_httpParser->getValue("x-apple-session-id") : "";
+   std::string authorization = m_httpParser->getValue("authorization") ? m_httpParser->getValue("authorization") : "";
++  std::string photoAction = m_httpParser->getValue("x-apple-assetaction") ? m_httpParser->getValue("x-apple-assetaction") : "";
++  std::string photoCacheId = m_httpParser->getValue("x-apple-assetkey") ? m_httpParser->getValue("x-apple-assetkey") : "";
++
+   int status = AIRPLAY_STATUS_OK;
+   bool needAuth = false;
+   
+@@ -961,6 +994,7 @@ int CAirPlayServer::CTCPClient::ProcessRequest( std::string& responseHeader,
+         CApplicationMessenger::Get().SendAction(ACTION_PREVIOUS_MENU);
+       }
+     }
++    ClearPhotoAssetCache();
+   }
+ 
+   // RAW JPEG data is contained in the request body
+@@ -971,28 +1005,64 @@ int CAirPlayServer::CTCPClient::ProcessRequest( std::string& responseHeader,
+     {
+       status = AIRPLAY_STATUS_NEED_AUTH;
+     }
+-    else if (m_httpParser->getContentLength() > 0)
++    else if (m_httpParser->getContentLength() > 0 || photoAction == "displayCached")
+     {
+       XFILE::CFile tmpFile;
+-      std::string tmpFileName = "special://temp/airplay_photo.jpg";
++      std::string tmpFileName = "special://temp/airplayasset";
++      bool showPhoto = true;
++      bool receivePhoto = true;
+ 
+-      if( m_httpParser->getContentLength() > 3 &&
++      
++      if (photoAction == "cacheOnly")
++        showPhoto = false;
++      else if (photoAction == "displayCached")
++      {
++        receivePhoto = false;
++        if (photoCacheId.length())
++          CLog::Log(LOGDEBUG, "AIRPLAY: Trying to show from cache asset: %s", photoCacheId.c_str());
++      }
++      
++      if (photoCacheId.length())
++        tmpFileName += photoCacheId;
++      else
++        tmpFileName += "airplay_photo";
++             
++      if( receivePhoto && m_httpParser->getContentLength() > 3 &&
+           m_httpParser->getBody()[1] == 'P' &&
+           m_httpParser->getBody()[2] == 'N' &&
+           m_httpParser->getBody()[3] == 'G')
+       {
+-        tmpFileName = "special://temp/airplay_photo.png";
++        tmpFileName += ".png";
++      }
++      else
++      {
++        tmpFileName += ".jpg";
+       }
+ 
+-      if (tmpFile.OpenForWrite(tmpFileName, true))
++      int writtenBytes=0;
++      if (receivePhoto)
+       {
+-        int writtenBytes=0;
+-        writtenBytes = tmpFile.Write(m_httpParser->getBody(), m_httpParser->getContentLength());
+-        tmpFile.Close();
++        if (tmpFile.OpenForWrite(tmpFileName, true))
++        {
++          writtenBytes = tmpFile.Write(m_httpParser->getBody(), m_httpParser->getContentLength());
++          tmpFile.Close();
++        }
++        if (photoCacheId.length())
++          CLog::Log(LOGDEBUG, "AIRPLAY: Cached asset: %s", photoCacheId.c_str());
++      }
+ 
+-        if (writtenBytes > 0 && (unsigned int)writtenBytes == m_httpParser->getContentLength())
++      if (showPhoto)
++      {
++        if ((writtenBytes > 0 && (unsigned int)writtenBytes == m_httpParser->getContentLength()) || !receivePhoto)
+         {
+-          CApplicationMessenger::Get().PictureShow(tmpFileName);
++          if (!receivePhoto && !XFILE::CFile::Exists(tmpFileName))
++          {
++            status = AIRPLAY_STATUS_PRECONDITION_FAILED; //image not found in the cache
++            if (photoCacheId.length())
++              CLog::Log(LOGWARNING, "AIRPLAY: Asset %s not found in our cache.", photoCacheId.c_str());
++          }
++          else
++            CApplicationMessenger::Get().PictureShow(tmpFileName);
+         }
+         else
+         {
+
+From b61729b899af0b01dc3f81abd866c3106905824b Mon Sep 17 00:00:00 2001
+From: Memphiz <memphis@machzwo.de>
+Date: Sat, 11 Jan 2014 02:16:41 +0100
+Subject: [PATCH 4/8] [airplay] - send an error code for the fp-setup request
+
+---
+ xbmc/network/AirPlayServer.cpp | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/xbmc/network/AirPlayServer.cpp b/xbmc/network/AirPlayServer.cpp
+index 4a53f0e..3cf94f6 100644
+--- a/xbmc/network/AirPlayServer.cpp
++++ b/xbmc/network/AirPlayServer.cpp
+@@ -1135,6 +1135,11 @@ int CAirPlayServer::CTCPClient::ProcessRequest( std::string& responseHeader,
+   else if (uri == "/getProperty")
+   {
+     status = AIRPLAY_STATUS_NOT_FOUND;
++  }
++
++  else if (uri == "/fp-setup")
++  {
++    status = AIRPLAY_STATUS_PRECONDITION_FAILED;
+   }  
+ 
+   else if (uri == "200") //response OK from the event reverse message
+
+From 2f5979f98d3e0add310e5a8811d99e0f3c4e9b80 Mon Sep 17 00:00:00 2001
+From: Memphiz <memphis@machzwo.de>
+Date: Sat, 11 Jan 2014 18:54:07 +0100
+Subject: [PATCH 5/8] [airplay] - add some handy helpers for using binary
+ plists
+
+---
+ xbmc/network/AirPlayServer.cpp | 34 ++++++++++++++++++++++++----------
+ xbmc/network/DllLibPlist.h     |  9 +++++++++
+ 2 files changed, 33 insertions(+), 10 deletions(-)
+
+diff --git a/xbmc/network/AirPlayServer.cpp b/xbmc/network/AirPlayServer.cpp
+index 3cf94f6..eb881f1 100644
+--- a/xbmc/network/AirPlayServer.cpp
++++ b/xbmc/network/AirPlayServer.cpp
+@@ -741,6 +741,29 @@ void CAirPlayServer::restoreVolume()
+   }
+ }
+ 
++void dumpPlist(DllLibPlist *pLibPlist, plist_t *dict)
++{
++  char *plist = NULL;
++  uint32_t len = 0;
++  pLibPlist->plist_to_xml(*dict,&plist, &len);
++  CLog::Log(LOGDEBUG, "AIRPLAY-DUMP: %s", plist);
++  
++}
++
++std::string getStringFromPlist(DllLibPlist *pLibPlist,plist_t node)
++{
++  std::string ret;
++  char *tmpStr = NULL;
++  pLibPlist->plist_get_string_val(node, &tmpStr);
++  ret = tmpStr;
++#ifdef TARGET_WINDOWS
++  pLibPlist->plist_free_string_val(tmpStr);
++#else
++  free(tmpStr);
++#endif
++  return ret;
++}
++
+ int CAirPlayServer::CTCPClient::ProcessRequest( std::string& responseHeader,
+                                                 std::string& responseBody)
+ {
+@@ -878,16 +901,7 @@ int CAirPlayServer::CTCPClient::ProcessRequest( std::string& responseHeader,
+ 
+           tmpNode = m_pLibPlist->plist_dict_get_item(dict, "Content-Location");
+           if (tmpNode)
+-          {
+-            char *tmpStr = NULL;
+-            m_pLibPlist->plist_get_string_val(tmpNode, &tmpStr);
+-            location=tmpStr;
+-#ifdef TARGET_WINDOWS
+-            m_pLibPlist->plist_free_string_val(tmpStr);
+-#else
+-            free(tmpStr);
+-#endif
+-          }
++            location = getStringFromPlist(m_pLibPlist, tmpNode);
+ 
+           if (dict)
+           {
+diff --git a/xbmc/network/DllLibPlist.h b/xbmc/network/DllLibPlist.h
+index 94511ac..d93b359 100644
+--- a/xbmc/network/DllLibPlist.h
++++ b/xbmc/network/DllLibPlist.h
+@@ -39,6 +39,9 @@ class DllLibPlistInterface
+ #ifdef TARGET_WINDOWS
+   virtual void        plist_free_string_val (char *val                                                  )=0;
+ #endif
++  virtual void        plist_to_xml          (plist_t plist,           char **plist_xml, uint32_t * length)=0;
++  virtual void        plist_dict_new_iter   (plist_t node,            plist_dict_iter *iter             )=0;
++  virtual void        plist_dict_next_item  (plist_t node,            plist_dict_iter iter, char **key, plist_t *val) = 0;
+ 
+ };
+ 
+@@ -50,8 +53,11 @@ class DllLibPlist : public DllDynamic, DllLibPlistInterface
+   DEFINE_METHOD1(void,          plist_free,           (plist_t p1))
+   DEFINE_METHOD2(void,          plist_get_string_val, (plist_t p1,      char **p2))
+   DEFINE_METHOD2(void,          plist_get_real_val,   (plist_t p1,      double *p2))
++  DEFINE_METHOD2(void,          plist_dict_new_iter,  (plist_t p1,      plist_dict_iter* p2))
+   DEFINE_METHOD2(plist_t,       plist_dict_get_item,  (plist_t p1,      const char* p2))
+   DEFINE_METHOD3(void,          plist_from_bin,       (const char *p1,  uint32_t p2, plist_t *p3))
++  DEFINE_METHOD3(void,          plist_to_xml,         (plist_t p1,      char **p2, uint32_t *p3));
++  DEFINE_METHOD4(void,          plist_dict_next_item, (plist_t p1, plist_dict_iter p2, char **p3, plist_t *p4))
+ #ifdef TARGET_WINDOWS
+   DEFINE_METHOD1(void,          plist_free_string_val, (char *p1))
+ #endif
+@@ -65,6 +71,9 @@ class DllLibPlist : public DllDynamic, DllLibPlistInterface
+     RESOLVE_METHOD_RENAME(plist_get_real_val,     plist_get_real_val)
+     RESOLVE_METHOD_RENAME(plist_get_string_val,   plist_get_string_val)
+     RESOLVE_METHOD_RENAME(plist_dict_get_item,    plist_dict_get_item)
++    RESOLVE_METHOD_RENAME(plist_dict_new_iter,    plist_dict_new_iter)
++    RESOLVE_METHOD_RENAME(plist_dict_next_item,   plist_dict_next_item)
++    RESOLVE_METHOD_RENAME(plist_to_xml,           plist_to_xml)
+ #ifdef TARGET_WINDOWS
+     RESOLVE_METHOD_RENAME(plist_free_string_val,  plist_free_string_val)
+ #endif
+
+From cdf256d1c6a23cfea089bb23c691c0b89c4c7c9f Mon Sep 17 00:00:00 2001
+From: Memphiz <memphis@machzwo.de>
+Date: Sat, 11 Jan 2014 18:54:55 +0100
+Subject: [PATCH 6/8] [airplay] - handle /play of newer airplay protocols -
+ instead of location it sends 2 seperate entries host + path
+
+---
+ xbmc/network/AirPlayServer.cpp | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/xbmc/network/AirPlayServer.cpp b/xbmc/network/AirPlayServer.cpp
+index eb881f1..fc69b95 100644
+--- a/xbmc/network/AirPlayServer.cpp
++++ b/xbmc/network/AirPlayServer.cpp
+@@ -901,7 +901,26 @@ int CAirPlayServer::CTCPClient::ProcessRequest( std::string& responseHeader,
+ 
+           tmpNode = m_pLibPlist->plist_dict_get_item(dict, "Content-Location");
+           if (tmpNode)
++          {
+             location = getStringFromPlist(m_pLibPlist, tmpNode);
++            tmpNode = NULL;
++          }
++          
++          // in newer protocol versions the location is given
++          // via host and path where host is ip:port and path is /path/file.mov
++          if (location.empty())
++              tmpNode = m_pLibPlist->plist_dict_get_item(dict, "host");
++          if (tmpNode)
++          {
++            location = "http://";
++            location += getStringFromPlist(m_pLibPlist, tmpNode);
++
++            tmpNode = m_pLibPlist->plist_dict_get_item(dict, "path");
++            if (tmpNode)
++            {
++              location += getStringFromPlist(m_pLibPlist, tmpNode);
++            }
++          }
+ 
+           if (dict)
+           {
+
+From 392babec96915939f416efa6888e1379140ad725 Mon Sep 17 00:00:00 2001
+From: Memphiz <memphis@machzwo.de>
+Date: Thu, 25 Sep 2014 21:52:18 +0200
+Subject: [PATCH 7/8] [airplay] - merge the binary plist and xml plist pathes
+ in airplay (which already diverged) by using libplist for parsing in both
+ cases - not only the binary case
+
+---
+ xbmc/network/AirPlayServer.cpp | 30 ++++++------------------------
+ xbmc/network/DllLibPlist.h     |  3 +++
+ 2 files changed, 9 insertions(+), 24 deletions(-)
+
+diff --git a/xbmc/network/AirPlayServer.cpp b/xbmc/network/AirPlayServer.cpp
+index fc69b95..5340d72 100644
+--- a/xbmc/network/AirPlayServer.cpp
++++ b/xbmc/network/AirPlayServer.cpp
+@@ -876,7 +876,7 @@ int CAirPlayServer::CTCPClient::ProcessRequest( std::string& responseHeader,
+     {
+       status = AIRPLAY_STATUS_NEED_AUTH;
+     }
+-    else if (contentType == "application/x-apple-binary-plist")
++    else
+     {
+       CAirPlayServer::m_isPlaying++;    
+       
+@@ -887,7 +887,11 @@ int CAirPlayServer::CTCPClient::ProcessRequest( std::string& responseHeader,
+         const char* bodyChr = m_httpParser->getBody();
+ 
+         plist_t dict = NULL;
+-        m_pLibPlist->plist_from_bin(bodyChr, m_httpParser->getContentLength(), &dict);
++        if (contentType == "application/x-apple-binary-plist")
++          m_pLibPlist->plist_from_bin(bodyChr, m_httpParser->getContentLength(), &dict);
++        else
++          m_pLibPlist->plist_from_xml(bodyChr, m_httpParser->getContentLength(), &dict);
++
+ 
+         if (m_pLibPlist->plist_dict_get_size(dict))
+         {
+@@ -934,28 +938,6 @@ int CAirPlayServer::CTCPClient::ProcessRequest( std::string& responseHeader,
+         m_pLibPlist->Unload();
+       }
+     }
+-    else
+-    {
+-      CAirPlayServer::m_isPlaying++;        
+-      // Get URL to play
+-      std::string contentLocation = "Content-Location: ";
+-      size_t start = body.find(contentLocation);
+-      if (start == std::string::npos)
+-        return AIRPLAY_STATUS_NOT_IMPLEMENTED;
+-      start += contentLocation.size();
+-      int end = body.find('\n', start);
+-      location = body.substr(start, end - start);
+-
+-      std::string startPosition = "Start-Position: ";
+-      start = body.find(startPosition);
+-      if (start != std::string::npos)
+-      {
+-        start += startPosition.size();
+-        int end = body.find('\n', start);
+-        std::string positionStr = body.substr(start, end - start);
+-        position = (float)atof(positionStr.c_str());
+-      }
+-    }
+ 
+     if (status != AIRPLAY_STATUS_NEED_AUTH)
+     {
+diff --git a/xbmc/network/DllLibPlist.h b/xbmc/network/DllLibPlist.h
+index d93b359..a6aa7c4 100644
+--- a/xbmc/network/DllLibPlist.h
++++ b/xbmc/network/DllLibPlist.h
+@@ -30,6 +30,7 @@ class DllLibPlistInterface
+   virtual ~DllLibPlistInterface() {}
+ 
+   virtual void        plist_from_bin        (const char *plist_bin,   uint32_t length, plist_t * plist  )=0;
++  virtual void        plist_from_xml        (const char *plist_xml,   uint32_t length, plist_t * plist  )=0;
+   virtual plist_t     plist_new_dict        (void                                                       )=0;
+   virtual uint32_t    plist_dict_get_size   (plist_t node                                               )=0;
+   virtual void        plist_get_string_val  (plist_t node,            char **val                        )=0;
+@@ -56,6 +57,7 @@ class DllLibPlist : public DllDynamic, DllLibPlistInterface
+   DEFINE_METHOD2(void,          plist_dict_new_iter,  (plist_t p1,      plist_dict_iter* p2))
+   DEFINE_METHOD2(plist_t,       plist_dict_get_item,  (plist_t p1,      const char* p2))
+   DEFINE_METHOD3(void,          plist_from_bin,       (const char *p1,  uint32_t p2, plist_t *p3))
++  DEFINE_METHOD3(void,          plist_from_xml,       (const char *p1,  uint32_t p2, plist_t *p3))
+   DEFINE_METHOD3(void,          plist_to_xml,         (plist_t p1,      char **p2, uint32_t *p3));
+   DEFINE_METHOD4(void,          plist_dict_next_item, (plist_t p1, plist_dict_iter p2, char **p3, plist_t *p4))
+ #ifdef TARGET_WINDOWS
+@@ -68,6 +70,7 @@ class DllLibPlist : public DllDynamic, DllLibPlistInterface
+     RESOLVE_METHOD_RENAME(plist_free,             plist_free)
+     RESOLVE_METHOD_RENAME(plist_dict_get_size,    plist_dict_get_size)
+     RESOLVE_METHOD_RENAME(plist_from_bin,         plist_from_bin)
++    RESOLVE_METHOD_RENAME(plist_from_xml,         plist_from_xml)
+     RESOLVE_METHOD_RENAME(plist_get_real_val,     plist_get_real_val)
+     RESOLVE_METHOD_RENAME(plist_get_string_val,   plist_get_string_val)
+     RESOLVE_METHOD_RENAME(plist_dict_get_item,    plist_dict_get_item)
+
+From 7f067bdb24602a5c550cf3adffe505d54cfc336c Mon Sep 17 00:00:00 2001
+From: Memphiz <memphis@machzwo.de>
+Date: Thu, 25 Sep 2014 21:53:16 +0200
+Subject: [PATCH 8/8] [airplay] - support the /play command which wants us to
+ start playback "paused" - (camera roll on ios8 for example)
+
+---
+ xbmc/network/AirPlayServer.cpp | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/xbmc/network/AirPlayServer.cpp b/xbmc/network/AirPlayServer.cpp
+index 5340d72..f9e04a0 100644
+--- a/xbmc/network/AirPlayServer.cpp
++++ b/xbmc/network/AirPlayServer.cpp
+@@ -868,6 +868,7 @@ int CAirPlayServer::CTCPClient::ProcessRequest( std::string& responseHeader,
+   {
+     std::string location;
+     float position = 0.0;
++    bool startPlayback = true;
+     m_lastEvent = EVENT_NONE;
+ 
+     CLog::Log(LOGDEBUG, "AIRPLAY: got request %s", uri.c_str());
+@@ -910,6 +911,18 @@ int CAirPlayServer::CTCPClient::ProcessRequest( std::string& responseHeader,
+             tmpNode = NULL;
+           }
+           
++          tmpNode = m_pLibPlist->plist_dict_get_item(dict, "rate");
++          if (tmpNode)
++          {
++            double rate = 0;
++            m_pLibPlist->plist_get_real_val(tmpNode, &rate);
++            if (rate == 0.0)
++            {
++              startPlayback = false;
++            }
++            tmpNode = NULL;
++          }
++
+           // in newer protocol versions the location is given
+           // via host and path where host is ip:port and path is /path/file.mov
+           if (location.empty())
+@@ -951,6 +964,13 @@ int CAirPlayServer::CTCPClient::ProcessRequest( std::string& responseHeader,
+       // one who will work well with airplay
+       g_application.m_eForcedNextPlayer = EPC_DVDPLAYER;
+       CApplicationMessenger::Get().MediaPlay(fileToPlay);
++
++      // allow starting the player paused in ios8 mode (needed by camera roll app)
++      if (CSettings::Get().GetBool("services.airplayios8compat") && !startPlayback)
++      {
++        CApplicationMessenger::Get().MediaPause();
++        g_application.m_pPlayer->SeekPercentage(position * 100.0f);
++      }
+     }
+   }
+ 

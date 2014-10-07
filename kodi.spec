@@ -1,4 +1,6 @@
-%global PRERELEASE a3
+# use the shell command below to build in current xbmc-rpm directory
+# rpmbuild --define "_topdir `pwd`/rpmbuild" -bb kodi.spec
+%global PRERELEASE a4
 #global DIRVERSION %{version}
 #global GITCOMMIT Gotham_r2-ge988513
 # use the line below for pre-releases
@@ -7,7 +9,7 @@
 
 Name: kodi
 Version: 14.0
-Release: 0.2.alpha3%{?dist}
+Release: 0.2.alpha4%{?dist}
 Summary: Media center
 
 License: GPLv2+ and GPLv3+
@@ -25,19 +27,18 @@ Source1: kodi-generate-tarball-xz.sh
 # http://trac.xbmc.org/ticket/9658
 Patch1: xbmc-13.0-dvdread.patch
 
-# need to file trac ticket, this patch just forces external hdhomerun
-# functionality, needs to be able fallback internal version
-Patch2: xbmc-13.0-hdhomerun.patch
-
 # Avoid segfault during goom's configure
 # https://bugzilla.redhat.com/1069079
-Patch3: xbmc-13.0-libmysqlclient.patch
+Patch2: xbmc-13.0-libmysqlclient.patch
 
 # Set program version parameters
-Patch4: kodi-14.0-versioning.patch
+Patch3: kodi-14.0-versioning.patch
 
 # Remove call to internal ffmpeg function (misued anyway)
-Patch5: kodi-14.0-dvddemux-ffmpeg.patch
+Patch4: kodi-14.0-dvddemux-ffmpeg.patch
+
+# airplay ios8 patch 
+Patch5: kodi-14.0-airplay.patch
 
 # Kodi is the renamed XBMC project
 Obsoletes: xbmc < 14.0-1
@@ -50,7 +51,7 @@ Obsoletes: xbmc-eventclients < 14.0-1
 %global _with_cwiid 1
 %global _with_libssh 1
 %global _with_libcec 1
-%global _with_external_ffmpeg 1
+%global _with_external_ffmpeg 0
 %endif
 
 %ifarch x86_64 i686
@@ -241,10 +242,11 @@ library.
 %setup -q -n %{name}-%{DIRVERSION}
 
 %patch1 -p1
-%patch2 -p1
+#%patch2 -p1
 %patch3 -p1
 %patch4 -p1
 %patch5 -p0
+%patch6 -p1
 
 %if 0%{?_with_hdhomerun}
 %else

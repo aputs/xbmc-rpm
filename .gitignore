@@ -4,4 +4,8 @@
 /CVS
 /Makefile
 /sources
-/xbmc-13.0-Gotham-beta1-patched.tar.xz
+/*.tar.xz
+/*.zip
+/kodi-14.0*/
+*.swp
+/rpmbuild
