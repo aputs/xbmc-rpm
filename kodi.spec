@@ -51,6 +51,7 @@ Obsoletes: xbmc-eventclients < 14.0-1
 %global _with_cwiid 1
 %global _with_libssh 1
 %global _with_libcec 1
+# use the one provided by xbmc >= 2.4.xx
 %global _with_external_ffmpeg 0
 %endif
 
