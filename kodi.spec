@@ -242,11 +242,10 @@ library.
 %setup -q -n %{name}-%{DIRVERSION}
 
 %patch1 -p1
-#%patch2 -p1
+%patch2 -p1
 %patch3 -p1
-%patch4 -p1
-%patch5 -p0
-%patch6 -p1
+%patch4 -p0
+%patch5 -p1
 
 %if 0%{?_with_hdhomerun}
 %else
