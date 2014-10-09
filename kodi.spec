@@ -1,15 +1,14 @@
 # use the shell command below to build in current xbmc-rpm directory
 # rpmbuild --define "_topdir `pwd`/rpmbuild" -bb kodi.spec
-%global PRERELEASE a4
-#global DIRVERSION %{version}
-#global GITCOMMIT Gotham_r2-ge988513
+%global PRERELEASE a5
+%global GITCOMMIT e0db1d8a
 # use the line below for pre-releases
-%global DIRVERSION %{version}%{PRERELEASE}
+%global DIRVERSION %{version}%{PRERELEASE}-%{GITCOMMIT}
 %global _hardened_build 1
 
 Name: kodi
 Version: 14.0
-Release: 0.2.alpha4%{?dist}
+Release: 0.2.alpha5%{?dist}
 Summary: Media center
 
 License: GPLv2+ and GPLv3+
@@ -356,7 +355,7 @@ fi
 
 %files
 %defattr(-,root,root)
-%doc copying.txt CONTRIBUTORS LICENSE.GPL README
+%doc copying.txt CONTRIBUTORS LICENSE.GPL README.md
 %doc docs
 %{_bindir}/xbmc
 %{_bindir}/xbmc-standalone

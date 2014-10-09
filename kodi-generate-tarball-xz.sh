@@ -3,15 +3,15 @@
 set -e
 
 MAJORVERSION=14
-MINORVERSION=0a4
-#GITCOMMIT=e988513175fccca83f8b688bb77b932f6a403b96
-#GITSHORT=ge988513
+MINORVERSION=0a5
+GITCOMMIT=e0db1d8a59bf17833ebb5d615c7e3a4181906284
+GITSHORT=e0db1d8a
 CODENAME=Helix
 
 VERSION=${MAJORVERSION}.${MINORVERSION}${GITSHORT:+-${GITSHORT}}
 
-GITHUBURL=https://github.com/xbmc/xbmc/zipball/$VERSION-$CODENAME
-#GITHUBURL=https://github.com/xbmc/xbmc/zipball/$GITCOMMIT
+#GITHUBURL=https://github.com/xbmc/xbmc/zipball/$VERSION-$CODENAME
+GITHUBURL=https://github.com/xbmc/xbmc/zipball/$GITCOMMIT
 
 # download zipball
 if [[ ! -f xbmc-$VERSION.zip ]]; then
