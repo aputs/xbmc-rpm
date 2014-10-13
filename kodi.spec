@@ -1,7 +1,7 @@
 # use the shell command below to build in current xbmc-rpm directory
 # rpmbuild --define "_topdir `pwd`/rpmbuild" -bb kodi.spec
 %global PRERELEASE a5
-%global GITCOMMIT e0db1d8a
+%global GITCOMMIT master
 # use the line below for pre-releases
 %global DIRVERSION %{version}%{PRERELEASE}-%{GITCOMMIT}
 %global _hardened_build 1
