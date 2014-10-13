@@ -4,13 +4,12 @@ set -e
 
 MAJORVERSION=14
 MINORVERSION=0a5
-GITCOMMIT=e0db1d8a59bf17833ebb5d615c7e3a4181906284
-GITSHORT=e0db1d8a
+GITCOMMIT=master
+GITSHORT=master
 CODENAME=Helix
 
 VERSION=${MAJORVERSION}.${MINORVERSION}${GITSHORT:+-${GITSHORT}}
 
-#GITHUBURL=https://github.com/xbmc/xbmc/zipball/$VERSION-$CODENAME
 GITHUBURL=https://github.com/xbmc/xbmc/zipball/$GITCOMMIT
 
 # download zipball
