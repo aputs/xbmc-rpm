@@ -36,9 +36,6 @@ Patch3: kodi-14.0-versioning.patch
 # Remove call to internal ffmpeg function (misued anyway)
 Patch4: kodi-14.0-dvddemux-ffmpeg.patch
 
-# airplay ios8 patch 
-Patch5: kodi-14.0-airplay.patch
-
 # Kodi is the renamed XBMC project
 Obsoletes: xbmc < 14.0-1
 Obsoletes: xbmc-eventclients < 14.0-1
@@ -245,7 +242,6 @@ library.
 %patch2 -p1
 %patch3 -p1
 %patch4 -p0
-%patch5 -p1
 
 %if 0%{?_with_hdhomerun}
 %else
