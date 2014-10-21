@@ -6,9 +6,11 @@
 %global DIRVERSION %{version}%{PRERELEASE}-%{GITCOMMIT}
 %global _hardened_build 1
 
+#%define _unpackaged_files_terminate_build 0
+
 Name: kodi
 Version: 14.0
-Release: 0.2.alpha5%{?dist}
+Release: 0.4.alpha5%{?dist}
 Summary: Media center
 
 License: GPLv2+ and GPLv3+
@@ -223,7 +225,7 @@ Summary: Media center event client remotes
 
 %description eventclients
 This package contains support for using Kodi with the PS3 Remote, the Wii
-Remote, a J2ME based remote and the command line xbmc-send utility.
+Remote, a J2ME based remote and the command line kodi-send utility.
 
 %package eventclients-devel
 Summary: Media center event client remotes development files
@@ -317,21 +319,24 @@ make DESTDIR=$RPM_BUILD_ROOT install
 make -C tools/EventClients DESTDIR=$RPM_BUILD_ROOT install 
 # remove the doc files from unversioned /usr/share/doc/xbmc, they should be in versioned docdir
 rm -r $RPM_BUILD_ROOT/%{_datadir}/doc/
+rm -f $RPM_BUILD_ROOT/%{_datadir}/xsessions/xbmc.desktop
+rm -f $RPM_BUILD_ROOT/%{_bindir}/xbmc-standalone
+rm -f $RPM_BUILD_ROOT/%{_bindir}/xbmc
 
 desktop-file-install \
  --dir=${RPM_BUILD_ROOT}%{_datadir}/applications \
- $RPM_BUILD_ROOT%{_datadir}/applications/xbmc.desktop
+ $RPM_BUILD_ROOT%{_datadir}/applications/kodi.desktop
 
 # Normally we are expected to build these manually. But since we are using
 # the system Python interpreter, we also want to use the system libraries
-install -d $RPM_BUILD_ROOT%{_libdir}/xbmc/addons/script.module.pil/lib
-ln -s %{python_sitearch}/PIL $RPM_BUILD_ROOT%{_libdir}/xbmc/addons/script.module.pil/lib/PIL
+install -d $RPM_BUILD_ROOT%{_libdir}/kodi/addons/script.module.pil/lib
+ln -s %{python_sitearch}/PIL $RPM_BUILD_ROOT%{_libdir}/kodi/addons/script.module.pil/lib/PIL
 #install -d $RPM_BUILD_ROOT%{_libdir}/xbmc/addons/script.module.pysqlite/lib
 #ln -s %{python_sitearch}/pysqlite2 $RPM_BUILD_ROOT%{_libdir}/xbmc/addons/script.module.pysqlite/lib/pysqlite2
 
 # Use external Roboto font files instead of bundled ones
-ln -sf %{_fontbasedir}/google-roboto/Roboto-Regular.ttf ${RPM_BUILD_ROOT}%{_datadir}/xbmc/addons/skin.confluence/fonts/
-ln -sf %{_fontbasedir}/google-roboto/Roboto-Bold.ttf ${RPM_BUILD_ROOT}%{_datadir}/xbmc/addons/skin.confluence/fonts/
+ln -sf %{_fontbasedir}/google-roboto/Roboto-Regular.ttf ${RPM_BUILD_ROOT}%{_datadir}/kodi/addons/skin.confluence/fonts/
+ln -sf %{_fontbasedir}/google-roboto/Roboto-Bold.ttf ${RPM_BUILD_ROOT}%{_datadir}/kodi/addons/skin.confluence/fonts/
 
 
 %post
@@ -353,32 +358,32 @@ fi
 %defattr(-,root,root)
 %doc copying.txt CONTRIBUTORS LICENSE.GPL README.md
 %doc docs
-%{_bindir}/xbmc
-%{_bindir}/xbmc-standalone
-%{_libdir}/xbmc
-%{_datadir}/xbmc
-%{_datadir}/xsessions/XBMC.desktop
-%{_datadir}/applications/xbmc.desktop
+%{_bindir}/kodi
+%{_bindir}/kodi-standalone
+%{_libdir}/kodi
+%{_datadir}/kodi
+%{_datadir}/xsessions/kodi.desktop
+%{_datadir}/applications/kodi.desktop
 %{_datadir}/icons/hicolor/*/*/*.png
 
 
 %files devel
-%{_includedir}/xbmc
+%{_includedir}/kodi
 
 
 %files eventclients
-%python_sitelib/xbmc
-%dir %{_datadir}/pixmaps/xbmc
-%{_datadir}/pixmaps/xbmc/*.png
-%{_bindir}/xbmc-j2meremote
-%{_bindir}/xbmc-ps3d
-%{_bindir}/xbmc-ps3remote
-%{_bindir}/xbmc-send
-%{_bindir}/xbmc-wiiremote
+%python_sitelib/kodi
+%dir %{_datadir}/pixmaps/kodi
+%{_datadir}/pixmaps/kodi/*.png
+%{_bindir}/kodi-j2meremote
+%{_bindir}/kodi-ps3d
+%{_bindir}/kodi-ps3remote
+%{_bindir}/kodi-send
+%{_bindir}/kodi-wiiremote
 
 
 %files eventclients-devel
-%{_includedir}/xbmc/xbmcclient.h
+%{_includedir}/kodi/xbmcclient.h
 
 
 %changelog
